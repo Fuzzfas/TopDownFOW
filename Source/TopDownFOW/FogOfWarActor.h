@@ -23,22 +23,37 @@ public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
-	void UpdateFogOfWarTexture();
-	void UpdateVisibilityGrid(const FVector2D& PlayerGridPosition);
+	//void UpdateFogOfWarTexture();
+	//void UpdateVisibilityGrid(const FVector2D& PlayerGridPosition);
+	void UpdateMeshSize(const FVector& FloorSize);
+	void SetFogVisibility(FVector Position, FVector Direction, float FieldOfViewAngle, float VisionRange, float Opacity);
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Materials")
+	UMaterialInstanceDynamic* DynamicMaterialInstance = nullptr;
+
+	
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	class UStaticMeshComponent* FogOfWarMesh;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Fog of War")
+
+
+	FVector FogSize;
+	
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Fog of War")
 	UTexture2D* FogOfWarTexture;
 
 	TArray<TArray<bool>> VisibilityGrid;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Fog of War")
-	float FieldOfViewAngle;
+	//UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Fog of War")
+	//float FieldOfViewAngle;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Fog of War")
 	int32 RayCount;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Fog of War")
+	FVector FogHeight;
 
 };
