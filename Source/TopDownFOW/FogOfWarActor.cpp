@@ -212,5 +212,7 @@ void AFogOfWarActor::SetFogVisibility(FVector Position, FVector Direction, float
 		DynamicMaterialInstance->SetScalarParameterValue(TEXT("FieldOfViewAngle"), FieldOfViewAngle);
 		DynamicMaterialInstance->SetScalarParameterValue(TEXT("VisionRange"), VisionRange);
 		DynamicMaterialInstance->SetScalarParameterValue(TEXT("Opacity"), Opacity);
+		//DynamicMaterialInstance->SetStaticSwitchParameterValue(FName("YourStaticSwitchParameterName"), bIsVisible, true);
+
 	}
 }
