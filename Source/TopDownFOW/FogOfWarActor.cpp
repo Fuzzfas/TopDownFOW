@@ -203,6 +203,53 @@ void AFogOfWarActor::UpdateMeshSize(const FVector& FloorSize)
 
 }
 
+bool AFogOfWarActor::IsWithinCone(FVector2D Position, FVector2D UnitPosition, FVector2D UnitDirection, float ConeAngle, float RevealRadius)
+{
+	FVector2D ToPixel = Position - UnitPosition;
+	float Distance = ToPixel.Size();
+
+	// Print debug information
+	UE_LOG(LogTemp, Warning, TEXT("Position: %s, UnitPosition: %s, ToPixel: %s, Distance: %f"),
+		*Position.ToString(), *UnitPosition.ToString(), *ToPixel.ToString(), Distance);
+
+	// Check if the pixel is within the reveal radius
+	if (Distance > RevealRadius)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Pixel is outside the reveal radius"));
+		return false;
+	}
+
+	// Normalize the direction vectors
+	ToPixel.Normalize();
+	UnitDirection.Normalize();
+
+	// Compute the angle between the unit's direction and the pixel's direction
+	float CosTheta = FVector2D::DotProduct(ToPixel, UnitDirection);
+	float Theta = FMath::Acos(CosTheta);
+
+	// Print debug information
+	UE_LOG(LogTemp, Warning, TEXT("CosTheta: %f, Theta: %f (in radians), Theta: %f (in degrees), HalfConeAngle: %f (in radians)"),
+		CosTheta, Theta, FMath::RadiansToDegrees(Theta), FMath::DegreesToRadians(ConeAngle / 2));
+
+	// Convert the cone angle to radians
+	float HalfConeAngle = FMath::DegreesToRadians(ConeAngle / 2);
+
+	// Check if the pixel is within the cone angle
+	bool IsWithin = Theta <= HalfConeAngle;
+	if (IsWithin)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Pixel is within the cone"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Pixel is outside the cone"));
+	}
+
+	return IsWithin;
+}
+
+
+
 void AFogOfWarActor::SetFogVisibility(FVector Position, FVector Direction, float FieldOfViewAngle, float VisionRange, float Opacity)
 {
 	if (DynamicMaterialInstance)
@@ -215,4 +262,27 @@ void AFogOfWarActor::SetFogVisibility(FVector Position, FVector Direction, float
 		//DynamicMaterialInstance->SetStaticSwitchParameterValue(FName("YourStaticSwitchParameterName"), bIsVisible, true);
 
 	}
+}
+
+void AFogOfWarActor::InitializeRevealedTexture()
+{
+	int WorldScaleFactor = 100;
+
+	FVector FogWorldSize = FogOfWarMesh->GetRelativeScale3D() * WorldScaleFactor;
+	int32 TextureSizeX = FogWorldSize.X;
+	int32 TextureSizeY = FogWorldSize.Y;
+
+	PreviouslyRevealedTexture = UTexture2D::CreateTransient(LowResTextureSizeX, LowResTextureSizeY, PF_B8G8R8A8);
+	PreviouslyRevealedTexture->CompressionSettings = TC_VectorDisplacementmap;
+	PreviouslyRevealedTexture->SRGB = false;
+	PreviouslyRevealedTexture->AddToRoot();
+	PreviouslyRevealedTexture->UpdateResource();
+
+	// Initialize the texture with white
+	FTexture2DMipMap& Mip = PreviouslyRevealedTexture->GetPlatformData()->Mips[0];
+	void* Data = Mip.BulkData.Lock(LOCK_READ_WRITE);
+	FMemory::Memset(Data, 255, LowResTextureSizeX * LowResTextureSizeY * sizeof(FColor));
+	Mip.BulkData.Unlock();
+	PreviouslyRevealedTexture->UpdateResource();
+
 }

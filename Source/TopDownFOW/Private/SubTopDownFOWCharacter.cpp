@@ -141,6 +141,7 @@ void ASubTopDownFOWCharacter::BeginPlay()
    if(FogOfWarActor && LevelFloorActor)
    {
       FogOfWarActor->UpdateMeshSize(LevelFloorActor->GetMeshSize());
+      FogOfWarActor->InitializeRevealedTexture();
    }
    else
    {

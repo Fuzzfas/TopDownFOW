@@ -27,6 +27,8 @@ public:
 	//void UpdateVisibilityGrid(const FVector2D& PlayerGridPosition);
 	void UpdateMeshSize(const FVector& FloorSize);
 	void SetFogVisibility(FVector Position, FVector Direction, float FieldOfViewAngle, float VisionRange, float Opacity);
+	void InitializeRevealedTexture();
+	bool IsWithinCone(FVector2D Position, FVector2D UnitPosition, FVector2D UnitDirection, float ConeAngle, float RevealRadius);
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Materials")
 	UMaterialInstanceDynamic* DynamicMaterialInstance = nullptr;
@@ -55,5 +57,8 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Fog of War")
 	FVector FogHeight;
+
+	UPROPERTY()
+	UTexture2D* PreviouslyRevealedTexture;
 
 };
