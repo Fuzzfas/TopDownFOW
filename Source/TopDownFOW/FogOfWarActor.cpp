@@ -20,6 +20,13 @@ AFogOfWarActor::AFogOfWarActor()
 
 }
 
+AFogOfWarActor::~AFogOfWarActor()
+{
+	// Cleanup memory
+	delete[] LowResData;
+	delete[] HighResData;
+}
+
 // Called when the game starts or when spawned
 void AFogOfWarActor::BeginPlay()
 {
@@ -203,6 +210,17 @@ void AFogOfWarActor::UpdateMeshSize(const FVector& FloorSize)
 
 }
 
+void AFogOfWarActor::DrawDebugConeFOW(FVector2D UnitPosition, FVector2D UnitDirection, float ConeAngle, float VisionRange)
+{
+	FVector UnitPosition3D(UnitPosition, 0);
+	FVector UnitDirection3D(UnitDirection, 0);
+	float HalfConeAngle = FMath::DegreesToRadians(ConeAngle / 2);
+
+	DrawDebugCone(GetWorld(), UnitPosition3D, UnitDirection3D, VisionRange, HalfConeAngle, HalfConeAngle, 12, FColor::Green, false, -1, 0, 5);
+	
+	
+}
+
 bool AFogOfWarActor::IsWithinCone(FVector2D Position, FVector2D UnitPosition, FVector2D UnitDirection, float ConeAngle, float RevealRadius)
 {
 	FVector2D ToPixel = Position - UnitPosition;
@@ -250,6 +268,8 @@ bool AFogOfWarActor::IsWithinCone(FVector2D Position, FVector2D UnitPosition, FV
 
 
 
+
+
 void AFogOfWarActor::SetFogVisibility(FVector Position, FVector Direction, float FieldOfViewAngle, float VisionRange, float Opacity)
 {
 	if (DynamicMaterialInstance)
@@ -269,20 +289,136 @@ void AFogOfWarActor::InitializeRevealedTexture()
 	int WorldScaleFactor = 100;
 
 	FVector FogWorldSize = FogOfWarMesh->GetRelativeScale3D() * WorldScaleFactor;
-	int32 TextureSizeX = FogWorldSize.X;
-	int32 TextureSizeY = FogWorldSize.Y;
+	HighResTextureSizeX = FogWorldSize.X;
+	HighResTextureSizeY = FogWorldSize.Y;
 
-	PreviouslyRevealedTexture = UTexture2D::CreateTransient(LowResTextureSizeX, LowResTextureSizeY, PF_B8G8R8A8);
-	PreviouslyRevealedTexture->CompressionSettings = TC_VectorDisplacementmap;
-	PreviouslyRevealedTexture->SRGB = false;
-	PreviouslyRevealedTexture->AddToRoot();
-	PreviouslyRevealedTexture->UpdateResource();
+	LowResTextureSizeX = HighResTextureSizeX/10;
+	LowResTextureSizeY = HighResTextureSizeY/10;
 
-	// Initialize the texture with white
+	// Allocate memory
+	LowResData = new FColor[LowResTextureSizeX * LowResTextureSizeY];
+	HighResData = new FColor[HighResTextureSizeX * HighResTextureSizeY];
+
+	PreviouslyRevealedTexture = UTexture2D::CreateTransient(LowResTextureSizeX, LowResTextureSizeY, PF_B8G8R8A8); //PF_B8G8R8A8: The pixel format, where each pixel is represented by four 8-bit channels (Blue, Green, Red, Alpha)
+	PreviouslyRevealedTexture->CompressionSettings = TC_VectorDisplacementmap; //used to ensure the texture retains high fidelity for each pixel's color data, which is important for precise visibility tracking in the fog of war system.
+	PreviouslyRevealedTexture->SRGB = false; //This line disables sRGB (standard RGB) encoding for the texture. sRGB encoding is used to adjust colors for display on standard monitors. Disabling it is important here because we need the raw, linear color values for accurate fog of war calculations, rather than values adjusted for display purposes.
+	PreviouslyRevealedTexture->AddToRoot(); // This line adds the texture to the root set, preventing it from being garbage collected.In Unreal Engine, objects that are not referenced anywhere can be automatically deleted by the garbage collector.Adding the texture to the root ensures it remains in memory as long as it's needed, even if there are no other references to it.
+	PreviouslyRevealedTexture->UpdateResource(); //This line updates the texture resource, making sure any changes made to the texture's properties are applied. This is necessary after modifying texture properties like compression settings or sRGB encoding to ensure these changes take effect.
+
+	// Initialize the LowResData with white
+	FMemory::Memset(LowResData, 255, LowResTextureSizeX * LowResTextureSizeY * sizeof(FColor));
+	// Initialize the HighResData with white
+	FMemory::Memset(HighResData, 255, HighResTextureSizeX * HighResTextureSizeY * sizeof(FColor));
+
+
+
 	FTexture2DMipMap& Mip = PreviouslyRevealedTexture->GetPlatformData()->Mips[0];
 	void* Data = Mip.BulkData.Lock(LOCK_READ_WRITE);
-	FMemory::Memset(Data, 255, LowResTextureSizeX * LowResTextureSizeY * sizeof(FColor));
+	FMemory::Memset(Data, 255, LowResTextureSizeX * LowResTextureSizeY * sizeof(FColor)); //Fills entire memory block in a single call, more efficient (255 means white in RGBA)
+
+
+
+	// Fill the texture with white pixels (old, less efficient method for my purposes)
+	//FColor* FormattedImageData = static_cast<FColor*>(Data);
+	//FColor WhiteColor = FColor::White;
+
+	//for (int32 y = 0; y < TextureSizeY; y++)
+	//{
+	//	for (int32 x = 0; x < TextureSizeX; x++)
+	//	{
+	//		FormattedImageData[y * TextureSizeX + x] = WhiteColor;
+	//	}
+	//}
+
+
 	Mip.BulkData.Unlock();
 	PreviouslyRevealedTexture->UpdateResource();
 
 }
+
+void AFogOfWarActor::UpdatePreviouslyRevealedTexture(FVector Position, FVector Direction, float FieldOfViewAngle, float VisionRange, float Opacity)
+{
+	if (!PreviouslyRevealedTexture)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("PreviouslyRevealedTexture is null"));
+		return;
+	}
+
+	FTexturePlatformData* PlatformData = PreviouslyRevealedTexture->GetPlatformData();
+	if (!PlatformData)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("PreviouslyRevealedTexture->GetPlatformData() is null"));
+		return;
+	}
+
+	int WorldToTextureScale = 1;
+
+	// Access the first mip level
+	FTexture2DMipMap& Mip = PlatformData->Mips[0];
+
+	// Lock the texture for writing, provides direct access to the texture’s memory, allowing safe modifications.
+	void* Data = Mip.BulkData.Lock(LOCK_READ_WRITE);
+
+	// Convert the unit position to texture coordinates
+	int32 CenterX = Position.X * WorldToTextureScale;
+	int32 CenterY = Position.Y * WorldToTextureScale;
+	FVector2D UnitPos2D(CenterX, CenterY);
+	FVector2D UnitDir2D(Direction.X, Direction.Y);
+
+	HighResTextureSizeX = PreviouslyRevealedTexture->GetSizeX();
+	HighResTextureSizeY = PreviouslyRevealedTexture->GetSizeY();
+
+	// Update the texture within the reveal radius and cone angle (low res version)
+	for (int32 Y = 0; Y < LowResTextureSizeY; ++Y)
+	{
+		for (int32 X = 0; X < LowResTextureSizeX; ++X)
+		{
+			FVector2D PixelPos(X, Y);
+
+			if (IsWithinCone(PixelPos, UnitPos2D, UnitDir2D, FieldOfViewAngle, VisionRange))
+			{
+				FColor& Pixel = ((FColor*)Data)[Y * LowResTextureSizeX + X];
+				Pixel = FColor::Black;  // Mark as revealed (black = 0 for extinction value)
+
+				if (GEngine)
+				{
+					// Create the full message string
+					FString Message = FString::Printf(TEXT("Marked Position as revealed..."));
+					GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, Message);
+				}
+			}
+		}
+	}
+
+	//Upscaling
+
+	int32 ScaleFactorX = HighResTextureSizeX / LowResTextureSizeX;
+	int32 ScaleFactorY = HighResTextureSizeY / LowResTextureSizeY;
+
+	for (int32 Y = 0; Y < LowResTextureSizeY; ++Y)
+	{
+		for (int32 X = 0; X < LowResTextureSizeX; ++X)
+		{
+			FColor& LowResPixel = ((FColor*)LowResData)[Y * LowResTextureSizeX + X];
+
+			// Copy the low-resolution pixel into a block of the high-resolution texture
+			for (int32 OffsetY = 0; OffsetY < ScaleFactorY; ++OffsetY)
+			{
+				for (int32 OffsetX = 0; OffsetX < ScaleFactorX; ++OffsetX)
+				{
+					int32 HighResX = X * ScaleFactorX + OffsetX;
+					int32 HighResY = Y * ScaleFactorY + OffsetY;
+
+					FColor& HighResPixel = ((FColor*)HighResData)[HighResY * HighResTextureSizeX + HighResX];
+					HighResPixel = LowResPixel;
+				}
+			}
+		}
+	}
+
+
+	// Unlock and update the texture (ensures engine can safely use the modified data)
+	Mip.BulkData.Unlock();
+	PreviouslyRevealedTexture->UpdateResource();
+}
+

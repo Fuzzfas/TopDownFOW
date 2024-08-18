@@ -61,6 +61,14 @@ void ASubTopDownFOWCharacter::Tick(float DeltaTime)
       }
       
       FogOfWarActor->SetFogVisibility(CurrentPlayer3DPosition, CurrentPlayerDirection, FieldOfViewAngle, VisionRange, 1.0f);
+
+      //Reduce frequency of this call for performance
+      TimeSinceLastUpdate += DeltaTime;
+      if (TimeSinceLastUpdate >= UpdateInterval)
+      {
+         FogOfWarActor->UpdatePreviouslyRevealedTexture(CurrentPlayer3DPosition, CurrentPlayerDirection, FieldOfViewAngle, VisionRange, 1.0f);
+         TimeSinceLastUpdate = 0.0f;
+      }
    }
 
 
