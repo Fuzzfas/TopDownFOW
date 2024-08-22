@@ -313,9 +313,10 @@ void AFogOfWarActor::InitializeRevealedTexture()
 
 
 	FTexture2DMipMap& Mip = PreviouslyRevealedTexture->GetPlatformData()->Mips[0];
-	void* Data = Mip.BulkData.Lock(LOCK_READ_WRITE);
-	FMemory::Memset(Data, 255, LowResTextureSizeX * LowResTextureSizeY * sizeof(FColor)); //Fills entire memory block in a single call, more efficient (255 means white in RGBA)
-
+	void* TextureData = Mip.BulkData.Lock(LOCK_READ_WRITE);
+	FMemory::Memset(TextureData, 255, LowResTextureSizeX * LowResTextureSizeY * sizeof(FColor)); //Fills entire memory block in a single call, more efficient (255 means white in RGBA)
+	Mip.BulkData.Unlock();
+	PreviouslyRevealedTexture->UpdateResource();
 
 
 	// Fill the texture with white pixels (old, less efficient method for my purposes)
@@ -329,15 +330,11 @@ void AFogOfWarActor::InitializeRevealedTexture()
 	//		FormattedImageData[y * TextureSizeX + x] = WhiteColor;
 	//	}
 	//}
-
-
-	Mip.BulkData.Unlock();
-	PreviouslyRevealedTexture->UpdateResource();
-
 }
 
 void AFogOfWarActor::UpdatePreviouslyRevealedTexture(FVector Position, FVector Direction, float FieldOfViewAngle, float VisionRange, float Opacity)
 {
+	//Error checking
 	if (!PreviouslyRevealedTexture)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("PreviouslyRevealedTexture is null"));
@@ -351,18 +348,13 @@ void AFogOfWarActor::UpdatePreviouslyRevealedTexture(FVector Position, FVector D
 		return;
 	}
 
-	int WorldToTextureScale = 1;
+	int WorldToTextureScale = 10; //The world is this factor larger than the low res texture
 
-	// Access the first mip level
-	FTexture2DMipMap& Mip = PlatformData->Mips[0];
-
-	// Lock the texture for writing, provides direct access to the texture’s memory, allowing safe modifications.
-	void* Data = Mip.BulkData.Lock(LOCK_READ_WRITE);
 
 	// Convert the unit position to texture coordinates
-	int32 CenterX = Position.X * WorldToTextureScale;
-	int32 CenterY = Position.Y * WorldToTextureScale;
-	FVector2D UnitPos2D(CenterX, CenterY);
+	int32 LowResX = Position.X / WorldToTextureScale;
+	int32 LowResY = Position.Y / WorldToTextureScale;
+	FVector2D UnitPos2D(LowResX, LowResY);
 	FVector2D UnitDir2D(Direction.X, Direction.Y);
 
 	HighResTextureSizeX = PreviouslyRevealedTexture->GetSizeX();
@@ -373,11 +365,18 @@ void AFogOfWarActor::UpdatePreviouslyRevealedTexture(FVector Position, FVector D
 	{
 		for (int32 X = 0; X < LowResTextureSizeX; ++X)
 		{
+			FColor& Pixel = LowResData[Y * LowResTextureSizeX + X];
+			
+			// Skip the pixel if it has already been revealed
+			if (Pixel == FColor::Black)
+			{
+				continue;
+			}
+
 			FVector2D PixelPos(X, Y);
 
 			if (IsWithinCone(PixelPos, UnitPos2D, UnitDir2D, FieldOfViewAngle, VisionRange))
-			{
-				FColor& Pixel = ((FColor*)Data)[Y * LowResTextureSizeX + X];
+			{				
 				Pixel = FColor::Black;  // Mark as revealed (black = 0 for extinction value)
 
 				if (GEngine)
@@ -414,11 +413,19 @@ void AFogOfWarActor::UpdatePreviouslyRevealedTexture(FVector Position, FVector D
 				}
 			}
 		}
-	}
+	}	
+	
 
+	// Access and Lock the first mip level and copy HighResData into the texture
+	FTexture2DMipMap& Mip = PreviouslyRevealedTexture->GetPlatformData()->Mips[0];
+	// Lock the texture for writing, provides direct access to the texture’s memory, allowing safe modifications.
+	void* TextureData = Mip.BulkData.Lock(LOCK_READ_WRITE);
+
+	FMemory::Memcpy(TextureData, HighResData, HighResTextureSizeX * HighResTextureSizeY * sizeof(FColor));
 
 	// Unlock and update the texture (ensures engine can safely use the modified data)
 	Mip.BulkData.Unlock();
 	PreviouslyRevealedTexture->UpdateResource();
+	
 }
 
