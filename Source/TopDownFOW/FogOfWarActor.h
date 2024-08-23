@@ -37,6 +37,8 @@ public:
 	void InitializeRevealedTexture();
 	bool IsWithinCone(FVector2D PixelPos, FVector2D UnitPos2D, FVector2D UnitDir2D, float FieldOfViewAngle, float VisionRange);
 	void UpdatePreviouslyRevealedTexture(FVector Position, FVector Direction, float FieldOfViewAngle, float VisionRange, float Opacity);
+	void UpscaleLowToHighRes(FColor& LowResPixel, FVector2D PixelPos);
+	void CopyToTexture();
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Materials")
 	UMaterialInstanceDynamic* DynamicMaterialInstance = nullptr;
@@ -74,10 +76,6 @@ private:
 	int32 LowResTextureSizeY;
 	int32 HighResTextureSizeX;
 	int32 HighResTextureSizeY;
-
-
-	
-
-
-
+	int32 ScaleFactorX;
+	int32 ScaleFactorY;
 };

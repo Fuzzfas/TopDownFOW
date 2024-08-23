@@ -52,9 +52,12 @@ void ASubTopDownFOWCharacter::Tick(float DeltaTime)
          // Convert FVector to string
          FString VectorString = CurrentPlayerGridPosition.ToString();
          FString VectorString2 = CurrentPlayerDirection.ToString();
+         FString VectorString3 = CurrentPlayer3DPosition.ToString();
+
          // Create the full message string
          FString Message = FString::Printf(TEXT("PlayerGridPosition: %s"), *VectorString);
          FString Message2 = FString::Printf(TEXT("PlayerDirection: %s"), *VectorString2);
+         FString Message3 = FString::Printf(TEXT("Player3DWorldPosition: %s"), *VectorString3);
 
          GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, Message);
          GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Blue, Message2);
