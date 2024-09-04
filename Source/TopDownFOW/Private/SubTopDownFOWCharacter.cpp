@@ -50,17 +50,18 @@ void ASubTopDownFOWCharacter::Tick(float DeltaTime)
       if (GEngine)
       {
          // Convert FVector to string
-         FString VectorString = CurrentPlayerGridPosition.ToString();
+         //FString VectorString = CurrentPlayerGridPosition.ToString();
          FString VectorString2 = CurrentPlayerDirection.ToString();
          FString VectorString3 = CurrentPlayer3DPosition.ToString();
 
          // Create the full message string
-         FString Message = FString::Printf(TEXT("PlayerGridPosition: %s"), *VectorString);
+         //FString Message = FString::Printf(TEXT("PlayerGridPosition: %s"), *VectorString);
          FString Message2 = FString::Printf(TEXT("PlayerDirection: %s"), *VectorString2);
          FString Message3 = FString::Printf(TEXT("Player3DWorldPosition: %s"), *VectorString3);
 
-         GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, Message);
+         //GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, Message);
          GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Blue, Message2);
+         GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green, Message3);
       }
       
       FogOfWarActor->SetFogVisibility(CurrentPlayer3DPosition, CurrentPlayerDirection, FieldOfViewAngle, VisionRange, 1.0f);
@@ -69,6 +70,9 @@ void ASubTopDownFOWCharacter::Tick(float DeltaTime)
       TimeSinceLastUpdate += DeltaTime;
       if (TimeSinceLastUpdate >= UpdateInterval)
       {
+         FString Message = FString::Printf(TEXT("Calling UpdatePreviouslyRevealedTexture()..."));
+         GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, Message);
+
          FogOfWarActor->UpdatePreviouslyRevealedTexture(CurrentPlayer3DPosition, CurrentPlayerDirection, FieldOfViewAngle, VisionRange, 1.0f);
          TimeSinceLastUpdate = 0.0f;
       }

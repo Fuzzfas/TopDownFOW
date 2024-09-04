@@ -60,7 +60,7 @@ protected:
    
    //For reducing loop frequency of UpdatePreviouslyRevealedTexture() in FogOfWarActor;
    float TimeSinceLastUpdate = 0.0f;
-   const float UpdateInterval = 0.5f; // Update every 0.5 seconds
+   const float UpdateInterval = 1.0f; // Update every X seconds
 
 
 };

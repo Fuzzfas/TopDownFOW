@@ -39,6 +39,7 @@ void AFogOfWarActor::BeginPlay()
     // Get the material applied to the static mesh
     UMaterialInterface* Material = FogOfWarMesh->GetMaterial(0);
 	 DynamicMaterialInstance = UMaterialInstanceDynamic::Create(Material, this);
+	 
 	 FogOfWarMesh->SetMaterial(0, DynamicMaterialInstance);
 
 
@@ -303,6 +304,11 @@ void AFogOfWarActor::InitializeRevealedTexture()
 		UE_LOG(LogTemp, Warning, TEXT("High resolution texture size might exceed VRAM limits."));
 	}
 
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Previously Revealed Texture Size is %i bytes"), HighResTextureSizeX * HighResTextureSizeY * sizeof(FColor));
+	}
+
 	LowResTextureSizeX = HighResTextureSizeX/10;
 	LowResTextureSizeY = HighResTextureSizeY/10;
 
@@ -319,6 +325,8 @@ void AFogOfWarActor::InitializeRevealedTexture()
 	PreviouslyRevealedTexture->AddToRoot(); // This line adds the texture to the root set, preventing it from being garbage collected.In Unreal Engine, objects that are not referenced anywhere can be automatically deleted by the garbage collector.Adding the texture to the root ensures it remains in memory as long as it's needed, even if there are no other references to it.
 	PreviouslyRevealedTexture->UpdateResource(); //This line updates the texture resource, making sure any changes made to the texture's properties are applied. This is necessary after modifying texture properties like compression settings or sRGB encoding to ensure these changes take effect.
 
+	
+
 	// Initialize the LowResData and HighResData with white
 	FMemory::Memset(LowResData, 255, LowResTextureSizeX * LowResTextureSizeY * sizeof(FColor));	
 	FMemory::Memset(HighResData, 255, HighResTextureSizeX * HighResTextureSizeY * sizeof(FColor));
@@ -332,12 +340,23 @@ void AFogOfWarActor::InitializeRevealedTexture()
 		FMemory::Memset(TextureData, 255, HighResTextureSizeX * HighResTextureSizeY * sizeof(FColor)); //Fills entire memory block in a single call, more efficient (255 means white in RGBA)
 		Mip.BulkData.Unlock();
 		PreviouslyRevealedTexture->UpdateResource();
+
+		// Set the texture parameter for the material instance
+		DynamicMaterialInstance->SetTextureParameterValue(FName("PreviouslyRevealedTexture"), PreviouslyRevealedTexture); //Push the update to the texture sampler parameter 2D node in material editor
 	}
 	else
 	{
 		UE_LOG(LogTemp, Error, TEXT("Failed to lock texture data."));
 	}
 	
+	if (LowResData == nullptr || HighResData == nullptr)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to allocate memory for LowResData or HighResData"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Log, TEXT("LowResData and HighResData Memory allocated successfully."));
+	}
 
 
 	// Fill the texture with white pixels (old, less efficient method for my purposes)
@@ -370,6 +389,8 @@ void AFogOfWarActor::UpdatePreviouslyRevealedTexture(FVector Position, FVector D
 	}
 
 	int WorldToTextureScale = 10; //The world is this factor larger than the low res texture
+	bool RevealedNew = false;
+	FColor HalfGrayColor(128, 128, 128, 255); // (R, G, B, A) - 128 is 0.5 in normalized form
 
 	// Convert the unit position to texture coordinates
 	int32 LowResX = Position.X / WorldToTextureScale;
@@ -386,8 +407,10 @@ void AFogOfWarActor::UpdatePreviouslyRevealedTexture(FVector Position, FVector D
 			
 			
 			// Skip the pixel if it has already been revealed
-			if (LowResPixel == FColor::Black)
+			if (LowResPixel == HalfGrayColor)
 			{
+				FString Message = FString::Printf(TEXT("Skipping Current Pixel Position..."));
+				GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, Message);
 				continue; // Only skips current iteration of a loop
 			}
 
@@ -395,13 +418,14 @@ void AFogOfWarActor::UpdatePreviouslyRevealedTexture(FVector Position, FVector D
 
 			if (IsWithinCone(PixelPos, UnitPos2D, UnitDir2D, FieldOfViewAngle, VisionRange))
 			{				
-				LowResPixel = FColor::Black;  // Mark as revealed (black = 0 for extinction value)
+
+				
+				
+				LowResPixel = HalfGrayColor;  // Mark as revealed (black = 0 for extinction value)
 
 				//Then Upscale
 				UpscaleLowToHighRes(LowResPixel, PixelPos);
-
-				//Then copy to texture memory
-				CopyToTexture();
+				RevealedNew = true; //allow Copy to Texture memory
 
 				//Debug msg
 				if (GEngine)
@@ -414,10 +438,13 @@ void AFogOfWarActor::UpdatePreviouslyRevealedTexture(FVector Position, FVector D
 		}
 	}
 
-	
-
-
-	
+	if (RevealedNew == true)
+	{
+		//Then copy to texture memory
+		CopyToTexture();
+		FString Message = FString::Printf(TEXT("Copying to Texture Memory..."));
+		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, Message);
+	}	
 }
 
 void AFogOfWarActor::UpscaleLowToHighRes(FColor& LowResPixel, FVector2D PixelPos)
@@ -431,7 +458,7 @@ void AFogOfWarActor::UpscaleLowToHighRes(FColor& LowResPixel, FVector2D PixelPos
 			int32 HighResY = PixelPos.Y * ScaleFactorY + OffsetY;
 
 			FColor& HighResPixel = HighResData[HighResY * HighResTextureSizeX + HighResX];
-			HighResPixel = LowResPixel;
+			HighResPixel = LowResPixel; //This simply copies the color data from LowResPixel to HighResPixel, even though they are both references!
 		}
 	}
 
