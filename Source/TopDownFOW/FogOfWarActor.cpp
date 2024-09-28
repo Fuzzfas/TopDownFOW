@@ -316,10 +316,12 @@ void AFogOfWarActor::InitializeRevealedTexture()
 	ScaleFactorY = HighResTextureSizeY / LowResTextureSizeY;
 
 	// Allocate memory
-	LowResData = new FColor[LowResTextureSizeX * LowResTextureSizeY];
-	HighResData = new FColor[HighResTextureSizeX * HighResTextureSizeY];
+	LowResData = new uint8[LowResTextureSizeX * LowResTextureSizeY];
+	HighResData = new uint8[HighResTextureSizeX * HighResTextureSizeY];
 
-	PreviouslyRevealedTexture = UTexture2D::CreateTransient(HighResTextureSizeX, HighResTextureSizeY, PF_B8G8R8A8); //PF_B8G8R8A8: The pixel format, where each pixel is represented by four 8-bit channels (Blue, Green, Red, Alpha)
+	PreviouslyRevealedTexture = UTexture2D::CreateTransient(HighResTextureSizeX, HighResTextureSizeY, PF_G8); //PF_G8 is the 8-bit grayscale format
+	
+	//PF_B8G8R8A8: The pixel format, where each pixel is represented by four 8-bit channels (Blue, Green, Red, Alpha)
 	PreviouslyRevealedTexture->CompressionSettings = TC_VectorDisplacementmap; //used to ensure the texture retains high fidelity for each pixel's color data, which is important for precise visibility tracking in the fog of war system.
 	PreviouslyRevealedTexture->SRGB = false; //This line disables sRGB (standard RGB) encoding for the texture. sRGB encoding is used to adjust colors for display on standard monitors. Disabling it is important here because we need the raw, linear color values for accurate fog of war calculations, rather than values adjusted for display purposes.
 	PreviouslyRevealedTexture->AddToRoot(); // This line adds the texture to the root set, preventing it from being garbage collected.In Unreal Engine, objects that are not referenced anywhere can be automatically deleted by the garbage collector.Adding the texture to the root ensures it remains in memory as long as it's needed, even if there are no other references to it.
@@ -328,8 +330,8 @@ void AFogOfWarActor::InitializeRevealedTexture()
 	
 
 	// Initialize the LowResData and HighResData with white
-	FMemory::Memset(LowResData, 255, LowResTextureSizeX * LowResTextureSizeY * sizeof(FColor));	
-	FMemory::Memset(HighResData, 255, HighResTextureSizeX * HighResTextureSizeY * sizeof(FColor));
+	FMemory::Memset(LowResData, 255, LowResTextureSizeX * LowResTextureSizeY * sizeof(uint8));	
+	FMemory::Memset(HighResData, 255, HighResTextureSizeX * HighResTextureSizeY * sizeof(uint8));
 
 	// Lock the texture data and initialize it
 	FTexture2DMipMap& Mip = PreviouslyRevealedTexture->GetPlatformData()->Mips[0];
@@ -337,7 +339,7 @@ void AFogOfWarActor::InitializeRevealedTexture()
 
 	if(TextureData)
 	{
-		FMemory::Memset(TextureData, 255, HighResTextureSizeX * HighResTextureSizeY * sizeof(FColor)); //Fills entire memory block in a single call, more efficient (255 means white in RGBA)
+		FMemory::Memset(TextureData, 255, HighResTextureSizeX * HighResTextureSizeY * sizeof(uint8)); //Fills entire memory block in a single call, more efficient (255 means white in RGBA)
 		Mip.BulkData.Unlock();
 		PreviouslyRevealedTexture->UpdateResource();
 
@@ -388,9 +390,8 @@ void AFogOfWarActor::UpdatePreviouslyRevealedTexture(FVector Position, FVector D
 		return;
 	}
 
-	int WorldToTextureScale = 10; //The world is this factor larger than the low res texture
-	bool RevealedNew = false;
-	FColor HalfGrayColor(128, 128, 128, 255); // (R, G, B, A) - 128 is 0.5 in normalized form
+	
+	bool RevealedNew = false;	
 
 	// Convert the unit position to texture coordinates
 	int32 LowResX = Position.X / WorldToTextureScale;
@@ -403,7 +404,7 @@ void AFogOfWarActor::UpdatePreviouslyRevealedTexture(FVector Position, FVector D
 	{
 		for (int32 X = 0; X < LowResTextureSizeX; ++X)
 		{
-			FColor& LowResPixel = LowResData[Y * LowResTextureSizeX + X];
+			uint8& LowResPixel = LowResData[Y * LowResTextureSizeX + X];
 			
 			
 			// Skip the pixel if it has already been revealed
@@ -447,7 +448,7 @@ void AFogOfWarActor::UpdatePreviouslyRevealedTexture(FVector Position, FVector D
 	}	
 }
 
-void AFogOfWarActor::UpscaleLowToHighRes(FColor& LowResPixel, FVector2D PixelPos)
+void AFogOfWarActor::UpscaleLowToHighRes(uint8& LowResPixel, FVector2D PixelPos)
 {
 	// Copy the low-resolution pixel into a block of the high-resolution texture
 	for (int32 OffsetY = 0; OffsetY < ScaleFactorY; ++OffsetY)
@@ -457,26 +458,48 @@ void AFogOfWarActor::UpscaleLowToHighRes(FColor& LowResPixel, FVector2D PixelPos
 			int32 HighResX = PixelPos.X * ScaleFactorX + OffsetX;
 			int32 HighResY = PixelPos.Y * ScaleFactorY + OffsetY;
 
-			FColor& HighResPixel = HighResData[HighResY * HighResTextureSizeX + HighResX];
+			uint8& HighResPixel = HighResData[HighResY * HighResTextureSizeX + HighResX];
 			HighResPixel = LowResPixel; //This simply copies the color data from LowResPixel to HighResPixel, even though they are both references!
 		}
 	}
-
 }
 
 void AFogOfWarActor::CopyToTexture()
 {
+	if (PreviouslyRevealedTexture && PreviouslyRevealedTexture->GetPlatformData() && HighResData)
+	{
+		// Access the first mip level
+		FTexture2DMipMap& Mip = PreviouslyRevealedTexture->GetPlatformData()->Mips[0];
 
-	// Access and Lock the first mip level and copy HighResData into the texture
-	FTexture2DMipMap& Mip = PreviouslyRevealedTexture->GetPlatformData()->Mips[0];
-	// Lock the texture for writing, provides direct access to the texture’s memory, allowing safe modifications.
-	void* TextureData = Mip.BulkData.Lock(LOCK_READ_WRITE);
+		// Ensure that BulkData is valid before attempting to lock it
+		if (Mip.BulkData.GetBulkDataSize() > 0)
+		{
+			// Lock the texture for writing, provides direct access to the texture’s memory, allowing safe modifications.
+			void* TextureData = Mip.BulkData.Lock(LOCK_READ_WRITE);
 
-	FMemory::Memcpy(TextureData, HighResData, HighResTextureSizeX * HighResTextureSizeY * sizeof(FColor));
+			// Make sure the texture data was successfully locked
+			if (TextureData)
+			{
+				// Perform the memory copy
+				FMemory::Memcpy(TextureData, HighResData, HighResTextureSizeX * HighResTextureSizeY * sizeof(FColor)); // Adjust size if using uint8
 
-	// Unlock and update the texture (ensures engine can safely use the modified data)
-	Mip.BulkData.Unlock();
-	PreviouslyRevealedTexture->UpdateResource();
-
+				// Unlock and update the texture
+				Mip.BulkData.Unlock();
+				PreviouslyRevealedTexture->UpdateResource();
+			}
+			else
+			{
+				UE_LOG(LogTemp, Error, TEXT("Failed to lock texture data."));
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("Invalid BulkData size."));
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Invalid PreviouslyRevealedTexture or HighResData."));
+	}
 }
 

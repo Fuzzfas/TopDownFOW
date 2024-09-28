@@ -37,7 +37,7 @@ public:
 	void InitializeRevealedTexture();
 	bool IsWithinCone(FVector2D PixelPos, FVector2D UnitPos2D, FVector2D UnitDir2D, float FieldOfViewAngle, float VisionRange);
 	void UpdatePreviouslyRevealedTexture(FVector Position, FVector Direction, float FieldOfViewAngle, float VisionRange, float Opacity);
-	void UpscaleLowToHighRes(FColor& LowResPixel, FVector2D PixelPos);
+	void UpscaleLowToHighRes(uint8& LowResPixel, FVector2D PixelPos);
 	void CopyToTexture();
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Materials")
@@ -70,12 +70,16 @@ protected:
 	UTexture2D* PreviouslyRevealedTexture;
 
 private:
-	FColor* LowResData;
-	FColor* HighResData;
+	uint8* LowResData;
+	uint8* HighResData;
 	int32 LowResTextureSizeX;
 	int32 LowResTextureSizeY;
 	int32 HighResTextureSizeX;
 	int32 HighResTextureSizeY;
 	int32 ScaleFactorX;
 	int32 ScaleFactorY;
+
+	uint8 HalfGrayColor = 0;
+	//FColor HalfGrayColor = FColor(128, 128, 128, 255); // (R, G, B, A) - 128 is 0.5 in normalized form
+	int WorldToTextureScale = 10; //The world is this factor larger than the low res texture
 };
