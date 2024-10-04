@@ -230,13 +230,13 @@ bool AFogOfWarActor::IsWithinCone(FVector2D Position, FVector2D UnitPosition, FV
 	float Distance = ToPixel.Size();
 
 	// Print debug information
-	UE_LOG(LogTemp, Warning, TEXT("Position: %s, UnitPosition: %s, ToPixel: %s, Distance: %f"),
-		*Position.ToString(), *UnitPosition.ToString(), *ToPixel.ToString(), Distance);
+	//UE_LOG(LogTemp, Warning, TEXT("Position: %s, UnitPosition: %s, ToPixel: %s, Distance: %f"),
+	//	*Position.ToString(), *UnitPosition.ToString(), *ToPixel.ToString(), Distance);
 
 	// Check if the pixel is within the reveal radius
 	if (Distance > RevealRadius)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Pixel is outside the reveal radius"));
+		//UE_LOG(LogTemp, Warning, TEXT("Pixel is outside the reveal radius"));
 		return false;
 	}
 
@@ -249,22 +249,22 @@ bool AFogOfWarActor::IsWithinCone(FVector2D Position, FVector2D UnitPosition, FV
 	float Theta = FMath::Acos(CosTheta);
 
 	// Print debug information
-	UE_LOG(LogTemp, Warning, TEXT("CosTheta: %f, Theta: %f (in radians), Theta: %f (in degrees), HalfConeAngle: %f (in radians)"),
-		CosTheta, Theta, FMath::RadiansToDegrees(Theta), FMath::DegreesToRadians(ConeAngle / 2));
+	/*UE_LOG(LogTemp, Warning, TEXT("CosTheta: %f, Theta: %f (in radians), Theta: %f (in degrees), HalfConeAngle: %f (in radians)"),
+		CosTheta, Theta, FMath::RadiansToDegrees(Theta), FMath::DegreesToRadians(ConeAngle / 2));*/
 
 	// Convert the cone angle to radians
 	float HalfConeAngle = FMath::DegreesToRadians(ConeAngle / 2);
 
 	// Check if the pixel is within the cone angle
 	bool IsWithin = Theta <= HalfConeAngle;
-	if (IsWithin)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Pixel is within the cone"));
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Pixel is outside the cone"));
-	}
+	//if (IsWithin)
+	//{
+	//	UE_LOG(LogTemp, Warning, TEXT("Pixel is within the cone"));
+	//}
+	//else
+	//{
+	//	UE_LOG(LogTemp, Warning, TEXT("Pixel is outside the cone"));
+	//}
 
 	return IsWithin;
 }
@@ -399,19 +399,25 @@ void AFogOfWarActor::UpdatePreviouslyRevealedTexture(FVector Position, FVector D
 	FVector2D UnitPos2D(LowResX, LowResY);
 	FVector2D UnitDir2D(Direction.X, Direction.Y);
 
+	int32 HighResX = Position.X;
+	int32 HighResY = Position.Y;
+
 	// Update the texture within the reveal radius and cone angle (low res version)
-	for (int32 Y = 0; Y < LowResTextureSizeY; ++Y)
+	//for (int32 Y = 0; Y < LowResTextureSizeY; ++Y)
+	for (int32 Y = 0; Y < HighResTextureSizeY; ++Y)
 	{
-		for (int32 X = 0; X < LowResTextureSizeX; ++X)
+		//for (int32 X = 0; X < LowResTextureSizeX; ++X)
+		for (int32 X = 0; X < HighResTextureSizeX; ++X)
 		{
-			uint8& LowResPixel = LowResData[Y * LowResTextureSizeX + X];
+			//uint8& LowResPixel = LowResData[Y * LowResTextureSizeX + X];
+			uint8& HighResPixel = HighResData[Y * HighResTextureSizeX + X];
 			
 			
 			// Skip the pixel if it has already been revealed
-			if (LowResPixel == HalfGrayColor)
+			if (HighResPixel == HalfGrayColor)
 			{
-				FString Message = FString::Printf(TEXT("Skipping Current Pixel Position..."));
-				GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, Message);
+				//FString Message = FString::Printf(TEXT("Skipping Current Pixel Position..."));
+				//GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, Message);
 				continue; // Only skips current iteration of a loop
 			}
 
@@ -422,18 +428,18 @@ void AFogOfWarActor::UpdatePreviouslyRevealedTexture(FVector Position, FVector D
 
 				
 				
-				LowResPixel = HalfGrayColor;  // Mark as revealed (black = 0 for extinction value)
+				HighResPixel = HalfGrayColor;  // Mark as revealed (black = 0 for extinction value)
 
 				//Then Upscale
-				UpscaleLowToHighRes(LowResPixel, PixelPos);
+				//UpscaleLowToHighRes(HighResPixel, PixelPos);
 				RevealedNew = true; //allow Copy to Texture memory
 
 				//Debug msg
 				if (GEngine)
 				{
 					// Create the full message string
-					FString Message = FString::Printf(TEXT("Marked Position as revealed..."));
-					GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, Message);
+					//FString Message = FString::Printf(TEXT("Marked Position as revealed..."));
+					//GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, Message);
 				}
 			}
 		}
@@ -443,8 +449,8 @@ void AFogOfWarActor::UpdatePreviouslyRevealedTexture(FVector Position, FVector D
 	{
 		//Then copy to texture memory
 		CopyToTexture();
-		FString Message = FString::Printf(TEXT("Copying to Texture Memory..."));
-		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, Message);
+		//FString Message = FString::Printf(TEXT("Copying to Texture Memory..."));
+		//GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, Message);
 	}	
 }
 
@@ -481,7 +487,7 @@ void AFogOfWarActor::CopyToTexture()
 			if (TextureData)
 			{
 				// Perform the memory copy
-				FMemory::Memcpy(TextureData, HighResData, HighResTextureSizeX * HighResTextureSizeY * sizeof(FColor)); // Adjust size if using uint8
+				FMemory::Memcpy(TextureData, HighResData, HighResTextureSizeX * HighResTextureSizeY * sizeof(uint8)); // Adjust size if using uint8
 
 				// Unlock and update the texture
 				Mip.BulkData.Unlock();
